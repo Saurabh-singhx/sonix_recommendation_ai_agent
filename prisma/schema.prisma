@@ -1,0 +1,218 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider             = "prisma-client-py"
+  interface            = "asyncio"
+  recursive_type_depth = 5
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+model User {
+  user_id          String    @id @default(uuid()) @db.Uuid
+  user_name        String    @db.VarChar(50)
+  user_email       String    @unique @db.VarChar(255)
+  user_password    String
+  user_profile_pic String    @default("")
+  date_of_birth    DateTime?
+  google_id        String?   @unique
+  gender           String?   @db.VarChar(20)
+  is_premium       Boolean   @default(false)
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+  last_login       DateTime?
+  role             UserRole  @default(USER)
+
+  likedSongs      LikedSong[]
+  playlists       Playlist[]
+  songEvents      UserSongEvent[]
+  tasteSummaries  UserTasteSummary[]
+  recommendations Recommendation[]
+  preferences     UserPreference[]
+  admin           Admin?
+}
+
+model Artist {
+  artist_id         String  @id @default(uuid()) @db.Uuid
+  artist_name       String  @db.VarChar(150)
+  artist_bio        String? @db.Text
+  artist_profilePic String? @db.VarChar(255)
+
+  isVerified Boolean @default(false)
+  followers  Int     @default(0)
+
+  songs Song[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([artist_name])
+}
+
+model Song {
+  song_id     String  @id @default(uuid()) @db.Uuid
+  song_title  String  @db.VarChar(200)
+  song_url    String   @unique
+
+  artist_id String? @db.Uuid
+  artist    Artist? @relation(fields: [artist_id], references: [artist_id], onDelete: SetNull)
+
+  album_name       String?   @db.VarChar(50)
+  size             Int
+  genre            String?   @db.VarChar(30)
+  release_date     DateTime?
+  cover_image_url  String    @default("")
+  tags             String[]  @default([])
+  popularity_score Float     @default(0)
+
+  likedByUsers    LikedSong[]
+  playlists       PlaylistSong[]
+  songEvents      UserSongEvent[]
+  aiProfile       SongAIProfile?
+  recommendations Recommendation[]
+  trending        TrendingSongs[]
+  suggestion      Song_suggestion[]
+}
+
+model Playlist {
+  playlist_id   String   @id @default(uuid()) @db.Uuid
+  user_id       String   @db.Uuid
+  playlist_name String   @db.VarChar(100)
+  description   String?
+  is_public     Boolean  @default(false)
+  created_at    DateTime @default(now())
+
+  user  User           @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  songs PlaylistSong[]
+
+  @@unique([user_id, playlist_name])
+  @@index([created_at])
+}
+
+model PlaylistSong {
+  playlist_id String   @db.Uuid
+  song_id     String   @db.Uuid
+  position    Int
+  added_at    DateTime @default(now())
+
+  playlist Playlist @relation(fields: [playlist_id], references: [playlist_id], onDelete: Cascade)
+  song     Song     @relation(fields: [song_id], references: [song_id], onDelete: Cascade)
+
+  @@id([playlist_id, song_id])
+  @@unique([playlist_id, position])
+}
+
+model LikedSong {
+  user_id  String   @db.Uuid
+  song_id  String   @db.Uuid
+  liked_at DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  song Song @relation(fields: [song_id], references: [song_id], onDelete: Cascade)
+
+  @@id([user_id, song_id])
+}
+
+model UserSongEvent {
+  id      String @id @default(uuid()) @db.Uuid
+  user_id String @db.Uuid
+  song_id String @db.Uuid
+
+  event_type    SongEventType
+  play_duration Int? // seconds listened
+
+  created_at DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  song Song @relation(fields: [song_id], references: [song_id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([song_id])
+}
+
+enum SongEventType {
+  PLAY
+  SKIP
+  PAUSE
+  COMPLETE
+  REPEAT
+}
+
+model SongAIProfile {
+  song_id String @id @db.Uuid
+
+  mood         String? // happy, sad, chill, workout
+  energy_level String? // low, medium, high
+  language     String?
+  vibe_tags    String[] @default([])
+
+  updated_at DateTime @updatedAt
+
+  song Song @relation(fields: [song_id], references: [song_id], onDelete: Cascade)
+}
+
+model UserTasteSummary {
+  user_id      String   @id @db.Uuid
+  summary_text String   @db.Text
+  updated_at   DateTime @updatedAt
+
+  user User @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+}
+
+model Recommendation {
+  id      String @id @default(uuid()) @db.Uuid
+  user_id String @db.Uuid
+  song_id String @db.Uuid
+
+  score  Float
+  reason String?
+
+  created_at DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  song Song @relation(fields: [song_id], references: [song_id], onDelete: Cascade)
+
+  @@index([user_id])
+}
+
+model UserPreference {
+  user_id            String   @id @db.Uuid
+  preferred_genres   String[]
+  preferred_moods    String[]
+  preferred_language String[]
+
+  user User @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+}
+
+model TrendingSongs {
+  song_id    String   @id @db.Uuid
+  score      Int
+  rank       Int
+  updated_at DateTime @updatedAt
+
+  song Song @relation(fields: [song_id], references: [song_id], onDelete: Cascade)
+
+  @@index([rank])
+}
+
+model Song_suggestion {
+  song_id    String   @id @db.Uuid
+  score      Int
+  rank       Int
+  updated_at DateTime @updatedAt
+
+  song Song @relation(fields: [song_id], references: [song_id], onDelete: Cascade)
+}
+
+model Admin {
+  user_id   String   @id @db.Uuid
+  created_at DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+}
