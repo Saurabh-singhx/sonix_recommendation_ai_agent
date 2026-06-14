@@ -5,10 +5,7 @@ import logging;
 
 logger = logging.getLogger(__name__)
 
-import logging
 from functools import wraps
-
-logger = logging.getLogger(__name__)
 
 def db_tool_errors(func):
     @wraps(func)

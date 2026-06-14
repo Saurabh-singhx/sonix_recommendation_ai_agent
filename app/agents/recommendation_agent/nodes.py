@@ -1,30 +1,50 @@
 from app.agents.recommendation_agent.state import RecommendationState
 from app.core.database import db
 from app.core.llm import llm
+import logging
+from functools import wraps
 from app.agents.recommendation_agent.tools import (
     get_users_recent_liked_songs,
     get_users_recent_skipped_songs,
     get_user_recent_completed_songs
 )
 
+logger = logging.getLogger(__name__)
+
+def node_error_handler(fallback: dict):
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(state):
+            try:
+                return await func(state)
+            except Exception as e:
+                logger.error(f"Error in {func.__name__}: {e}")
+                return {**fallback, "error": f"{func.__name__} failed: {e}"}
+        return wrapper
+    return decorator
+
+@node_error_handler(fallback={"liked_songs": []})
 async def fetch_users_recent_liked_songs(state:RecommendationState) -> RecommendationState:
 
     recent_liked_songs = await get_users_recent_liked_songs.ainvoke(state["user_id"])
 
     return {"liked_songs": recent_liked_songs}
 
+@node_error_handler(fallback={"skipped_songs": []})
 async def fetch_users_recent_skipped_songs(state:RecommendationState) -> RecommendationState:
 
     recent_skipped_songs = await get_users_recent_skipped_songs.ainvoke(state["user_id"])
 
     return {"skipped_songs": recent_skipped_songs}
 
+@node_error_handler(fallback={"completed_songs": []})
 async def fetch_users_recent_completed_songs(state:RecommendationState) -> RecommendationState:
 
     recent_completed_songs = await get_user_recent_completed_songs.ainvoke(state["user_id"])
 
     return {"completed_songs": recent_completed_songs}
 
+@node_error_handler(fallback={"liked_songs_summary": ""})
 async def create_summary_liked_song(state:RecommendationState) -> RecommendationState:
 
     response = await llm.ainvoke(
@@ -41,6 +61,7 @@ async def create_summary_liked_song(state:RecommendationState) -> Recommendation
 
     return {"liked_songs_summary": content}
 
+@node_error_handler(fallback={"skipped_songs_summary": ""})
 async def create_summary_skipped_song(state:RecommendationState) -> RecommendationState:
 
     response = await llm.ainvoke(
@@ -57,6 +78,7 @@ async def create_summary_skipped_song(state:RecommendationState) -> Recommendati
 
     return {"skipped_songs_summary": content}
 
+@node_error_handler(fallback={"completed_songs_summary": ""})
 async def create_summary_completed_song(state:RecommendationState) -> RecommendationState:
 
     response = await llm.ainvoke(
@@ -73,6 +95,7 @@ async def create_summary_completed_song(state:RecommendationState) -> Recommenda
 
     return {"completed_songs_summary": content}
 
+@node_error_handler(fallback={"summary_liked_skipped_completed": ""})
 async def summarize_liked_skipped_completed_summary(state:RecommendationState) -> RecommendationState:
 
     response = await llm.ainvoke(
