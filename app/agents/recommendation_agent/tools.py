@@ -1,6 +1,25 @@
 from app.core.database import db
 from langchain_core.tools import tool
 from typing import List
+import logging; 
+
+logger = logging.getLogger(__name__)
+
+import logging
+from functools import wraps
+
+logger = logging.getLogger(__name__)
+
+def db_tool_errors(func):
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        try:
+            return await func(*args, **kwargs)
+        except Exception as e:
+            logger.error(f"Error in {func.__name__}: {e}")
+            return f"Error: could not complete {func.__name__.replace('_', ' ')}, please try again."
+    return wrapper
+
 
 @tool
 async def get_all_artist_name()->str:
@@ -11,6 +30,7 @@ async def get_all_artist_name()->str:
     return "\n".join(a.artist_name for a in artist)
 
 @tool
+@db_tool_errors
 async def get_song_by_genre(input_genre:str) -> str:
     """fetch song by genre"""
     songs_by_genre = await db.song.find_many(
@@ -36,6 +56,7 @@ async def get_song_by_genre(input_genre:str) -> str:
     )
 
 @tool
+@db_tool_errors
 async def get_songs_by_popularity_score() -> str:  #   <<<====-----==== Need fixing
     """fetch top 20 songs by their popularity score"""
     songs_by_popularity = await db.song.find_many(
@@ -68,6 +89,7 @@ async def get_songs_by_popularity_score() -> str:  #   <<<====-----==== Need fix
     )
 
 @tool
+@db_tool_errors
 async def get_songs_by_likes() -> str:
     """fetch top 20 liked songs of all time"""
     song_by_like = await db.song.find_many(
@@ -97,6 +119,7 @@ async def get_songs_by_likes() -> str:
     )
 
 @tool
+@db_tool_errors
 async def get_user_taste_summary(userId:str)->str:
     """fetch users song taste summary"""
     taste_summary = await db.user.find_unique(
@@ -114,6 +137,7 @@ async def get_user_taste_summary(userId:str)->str:
     return f"user taste summary:{taste_summary.tasteSummaries[0].summary_text if taste_summary.tasteSummaries else "no summary added for this user"}"
 
 @tool
+@db_tool_errors
 async def get_todays_trending_song()->str:
     """fetch todays top 10 trending songs"""
     trending_songs = await db.trendingsongs.find_many(
@@ -140,6 +164,7 @@ async def get_todays_trending_song()->str:
     )
 
 @tool
+@db_tool_errors
 async def get_most_repeated_song() -> str:
     """fetch top 20 most repeated songs"""
     grouped_songs = await db.usersongevent.group_by(
@@ -175,6 +200,7 @@ async def get_most_repeated_song() -> str:
     )
 
 @tool
+@db_tool_errors
 async def get_users_recent_liked_songs(userId:str) ->str:
     """fetch user last 20 liked songs"""
     recent_liked_songs = await db.likedsong.find_many(
@@ -207,6 +233,7 @@ async def get_users_recent_liked_songs(userId:str) ->str:
     )
 
 @tool
+@db_tool_errors
 async def get_user_recent_completed_songs(userId:str) ->str:
     """fetch users 20 recent completed songs"""
     completed_songs_details = await db.usersongevent.find_many(
@@ -240,6 +267,7 @@ async def get_user_recent_completed_songs(userId:str) ->str:
     )
 
 @tool
+@db_tool_errors
 async def get_users_recent_skipped_songs(userId:str) -> str:
     """fetch users 20 recent skipped songs"""
 
@@ -274,6 +302,7 @@ async def get_users_recent_skipped_songs(userId:str) -> str:
     )
 
 # @tool
+#@db_tool_errors
 # async def get_songs_by_listning_duration() ->str:
 #     """fetch top 20 songs by listning time"""
 
@@ -282,6 +311,7 @@ async def get_users_recent_skipped_songs(userId:str) -> str:
 #     )
 
 @tool
+@db_tool_errors
 async def get_songs_by_tags(input_tags: List[str])->str:
     """fetch songs 20 songs by tags"""
 
@@ -310,6 +340,7 @@ async def get_songs_by_tags(input_tags: List[str])->str:
     )
 
 @tool
+@db_tool_errors
 async def get_songs_by_mood(input_mood:str)->str:
     """fetch 20 songs by mood"""
 
@@ -338,29 +369,29 @@ async def get_songs_by_mood(input_mood:str)->str:
     )
 
 @tool
-async def get_songs_by_energy_level(input_energy_level:str) -> str:
+@db_tool_errors
+async def get_songs_by_energy_level(input_energy_level: str) -> str:
     """fetch 20 songs by energy level"""
-
     songs_by_energy_level = await db.songaiprofile.find_many(
-        where={
-            "energy_level":input_energy_level
-        },
-        take=20,
-        include={
-            "song":{
-                "include":{
-                    "artist":True
+            where={
+                "energy_level": input_energy_level
+            },
+            take=20,
+            include={
+                "song": {
+                    "include": {
+                        "artist": True
+                    }
                 }
             }
-        }
     )
 
     if not songs_by_energy_level:
         return f"no song found for energy_level: {input_energy_level}"
-    
+
     return "\n".join(
-        f"song_id:{s.song.song_id}, song_name:{s.song.song_title}, song_tags:{s.song.tags}, song_genre:{s.song.genre}, "
-        f"song_artist:{s.song.artist.artist_name if s.song.artist else 'unknown'}, "
-        f"song_language:{s.language},song_energy:{s.energy_level} "
-        for s in songs_by_energy_level
+            f"song_id:{s.song.song_id}, song_name:{s.song.song_title}, song_tags:{s.song.tags}, song_genre:{s.song.genre}, "
+            f"song_artist:{s.song.artist.artist_name if s.song.artist else 'unknown'}, "
+            f"song_language:{s.language}, song_energy:{s.energy_level} "
+            for s in songs_by_energy_level
     )
