@@ -1,4 +1,5 @@
 from langgraph.graph import StateGraph, END, START
+from langgraph.prebuilt import ToolNode, tools_condition
 from app.agents.recommendation_agent.state import RecommendationState
 from app.agents.recommendation_agent.nodes import (
     fetch_users_recent_completed_songs,
@@ -7,8 +8,11 @@ from app.agents.recommendation_agent.nodes import (
     create_summary_completed_song,
     create_summary_liked_song,
     create_summary_skipped_song,
-    summarize_liked_skipped_completed_summary
+    summarize_liked_skipped_completed_summary,
+    recommendation_agent_node
 )
+from app.agents.recommendation_agent.nodes import reommendation_tools_for_ai
+tool_node = ToolNode(reommendation_tools_for_ai)
 
 def build_graph():
     graph = StateGraph(RecommendationState)
@@ -21,6 +25,8 @@ def build_graph():
     graph.add_node("summary_liked_songs", create_summary_liked_song)
     graph.add_node("summary_skipped_songs", create_summary_skipped_song)
     graph.add_node("summary_liked_skipped_completed", summarize_liked_skipped_completed_summary)
+    graph.add_node("recommendation_agent", recommendation_agent_node)
+    graph.add_node("tools", tool_node)
 
 
     # define flow
@@ -33,7 +39,13 @@ def build_graph():
     graph.add_edge("summary_completed_song", "summary_liked_skipped_completed")
     graph.add_edge("summary_liked_songs", "summary_liked_skipped_completed")
     graph.add_edge("summary_skipped_songs", "summary_liked_skipped_completed")
-    graph.add_edge("summary_liked_skipped_completed",END)
+    graph.add_edge("summary_liked_skipped_completed","recommendation_agent")
+    graph.add_conditional_edges(
+        "recommendation_agent",
+        tools_condition,  
+        {"tools": "tools", END: END}
+    )
+    graph.add_edge("tools", "recommendation_agent") 
 
 
     return graph.compile()

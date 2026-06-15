@@ -1,4 +1,5 @@
-from typing import TypedDict, List, Optional
+from typing import TypedDict, List, Optional,Annotated
+from langgraph.graph.message import add_messages
 
 class RecommendationState(TypedDict):
     user_id: str
@@ -16,5 +17,6 @@ class RecommendationState(TypedDict):
     
     recommendation_summary:str
     recommendation_songs: List[str]
+    messages: Annotated[list, add_messages]
 
     error: Optional[str]

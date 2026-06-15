@@ -1,4 +1,5 @@
 from app.agents.recommendation_agent.state import RecommendationState
+from langchain_core.messages import HumanMessage
 from app.core.database import db
 from app.core.llm import llm
 import logging
@@ -6,8 +7,26 @@ from functools import wraps
 from app.agents.recommendation_agent.tools import (
     get_users_recent_liked_songs,
     get_users_recent_skipped_songs,
-    get_user_recent_completed_songs
+    get_user_recent_completed_songs,
+    
+    get_all_artist_name,     #tools for ai
+    get_most_repeated_song,
+    get_song_by_genre,
+    get_songs_by_energy_level,
+    get_songs_by_likes,
+    get_songs_by_mood,
+    get_songs_by_tags,
+    get_todays_trending_song,
 )
+
+reommendation_tools_for_ai = [ get_all_artist_name,
+    get_most_repeated_song,
+    get_song_by_genre,
+    get_songs_by_energy_level,
+    get_songs_by_likes,
+    get_songs_by_mood,
+    get_songs_by_tags,
+    get_todays_trending_song,]
 
 logger = logging.getLogger(__name__)
 
@@ -111,3 +130,22 @@ async def summarize_liked_skipped_completed_summary(state:RecommendationState) -
         content = next((b.get("text", "") for b in content if b.get("type") == "text"), "")
 
     return {"summary_liked_skipped_completed": content}
+
+llm_with_tools = llm.bind_tools(reommendation_tools_for_ai)
+
+@node_error_handler(fallback={"messages": []})
+async def recommendation_agent_node(state: RecommendationState) -> RecommendationState:
+    if not state["messages"]:
+        prompt = (
+            f"User profile summary: {state['summary_liked_skipped_completed']}. "
+            f"Use the available tools to fetch candidate songs that match this user's taste, "
+            f"then recommend exact 50 songs with reasoning."
+        )
+        human_message = HumanMessage(content=prompt)
+        response = await llm_with_tools.ainvoke([human_message])
+        return {"messages": [human_message, response]}
+
+    response = await llm_with_tools.ainvoke(state["messages"])
+    print(response.usage_metadata)
+    print(response.content)
+    return {"messages": [response]}

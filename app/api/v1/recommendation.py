@@ -28,7 +28,7 @@ async def refresh(user_id: str):
 
         "recommendation_summary":"",
         "recommendation_songs":[],
-
+        "messages": [],
         "error": None
     }
     try:
@@ -40,4 +40,4 @@ async def refresh(user_id: str):
     if result.get("error"):
         logger.warning(f"Partial failure for user {user_id}: {result['error']}")
 
-    return {"summary_liked_skipped_completed": result.get("summary_liked_skipped_completed", "")}
+    return {"result":result.get("messages")}
