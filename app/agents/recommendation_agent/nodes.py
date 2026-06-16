@@ -4,6 +4,8 @@ from app.core.database import db
 from app.core.llm import llm
 import logging
 from functools import wraps
+from pydantic import BaseModel
+from langchain_core.messages import AIMessage
 from app.agents.recommendation_agent.tools import (
     get_users_recent_liked_songs,
     get_users_recent_skipped_songs,
@@ -131,6 +133,7 @@ async def summarize_liked_skipped_completed_summary(state:RecommendationState) -
 
     return {"summary_liked_skipped_completed": content}
 
+
 llm_with_tools = llm.bind_tools(reommendation_tools_for_ai)
 
 @node_error_handler(fallback={"messages": []})
@@ -139,13 +142,41 @@ async def recommendation_agent_node(state: RecommendationState) -> Recommendatio
         prompt = (
             f"User profile summary: {state['summary_liked_skipped_completed']}. "
             f"Use the available tools to fetch candidate songs that match this user's taste, "
-            f"then recommend exact 50 songs with reasoning."
+            f"then recommend 50 songs with reasoning."
+            f"give only song_id and song name"
         )
         human_message = HumanMessage(content=prompt)
         response = await llm_with_tools.ainvoke([human_message])
         return {"messages": [human_message, response]}
 
     response = await llm_with_tools.ainvoke(state["messages"])
-    print(response.usage_metadata)
-    print(response.content)
+
     return {"messages": [response]}
+
+class RecommendedSong(BaseModel):
+    song_id: str
+    song_name: str
+
+class RecommendationOutput(BaseModel):
+    songs: list[RecommendedSong]
+    summary: str
+
+def get_last_ai_message(state: RecommendationState) -> AIMessage | None:
+    for message in reversed(state["messages"]):
+        if isinstance(message, AIMessage):
+            return message
+    return None
+
+structured_llm = llm.with_structured_output(RecommendationOutput)
+
+@node_error_handler(fallback={"recommendation_summary":"","recommendation_songs":[]})
+async def final_recommendation_node(state: RecommendationState) -> RecommendationState:
+    message = get_last_ai_message(state)
+
+    response = await structured_llm.ainvoke(
+        f"extract song_id and summary for next song recommendation from this message {message}"
+    )
+    print(response.songs)
+    print(response.summary)
+    
+    return {"recommendation_summary":response.summary,"recommendation_songs":response.songs}

@@ -40,4 +40,4 @@ async def refresh(user_id: str):
     if result.get("error"):
         logger.warning(f"Partial failure for user {user_id}: {result['error']}")
 
-    return {"result":result.get("messages")}
+    return {"song_id":result.get("recommendation_songs"),"summary":result.get("recommendation_summary")}

@@ -9,7 +9,8 @@ from app.agents.recommendation_agent.nodes import (
     create_summary_liked_song,
     create_summary_skipped_song,
     summarize_liked_skipped_completed_summary,
-    recommendation_agent_node
+    recommendation_agent_node,
+    final_recommendation_node
 )
 from app.agents.recommendation_agent.nodes import reommendation_tools_for_ai
 tool_node = ToolNode(reommendation_tools_for_ai)
@@ -27,6 +28,7 @@ def build_graph():
     graph.add_node("summary_liked_skipped_completed", summarize_liked_skipped_completed_summary)
     graph.add_node("recommendation_agent", recommendation_agent_node)
     graph.add_node("tools", tool_node)
+    graph.add_node("final_recommendation", final_recommendation_node)
 
 
     # define flow
@@ -43,10 +45,10 @@ def build_graph():
     graph.add_conditional_edges(
         "recommendation_agent",
         tools_condition,  
-        {"tools": "tools", END: END}
+        {"tools": "tools", END: "final_recommendation"}
     )
     graph.add_edge("tools", "recommendation_agent") 
-
+    graph.add_edge("final_recommendation", END) 
 
     return graph.compile()
 
